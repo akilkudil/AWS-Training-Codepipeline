@@ -1,6 +1,18 @@
 {
 	"AWSTemplateFormatVersion": "2010-09-09",
 	"Description": "Create from scratch all resources - codepipeline conataining codecommit to eb application",
+	"Parameters": {
+		"SourceBundle": {
+			"Type": "String",
+			"Description": "Bucket having source bundle/sample source bundle for eb app creation",
+			"Default": "testchnind2"
+		},
+		"Sourcezip": {
+			"Type": "String",
+			"Description": "Name of zip for eb app creation",
+			"Default": "test.zip"
+		}
+	},
 	"Resources": {
 		"BasePipeline": {
 			"Type": "AWS::CodePipeline::Pipeline",
@@ -152,8 +164,12 @@
 				},
 				"Description": "AWS ElasticBeanstalk Sample Application Version",
 				"SourceBundle": {
-					"S3Bucket": "testchnind2",
-					"S3Key": "test.zip"
+					"S3Bucket": {
+						"Ref": "SourceBundle"
+					},
+					"S3Key": {
+						"Ref": "Sourcezip"
+					}
 				}
 			}
 		},

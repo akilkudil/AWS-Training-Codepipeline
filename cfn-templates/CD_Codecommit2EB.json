@@ -1,0 +1,232 @@
+{
+	"AWSTemplateFormatVersion": "2010-09-09",
+	"Description": "Create from scratch all resources - codepipeline conataining codecommit to eb application",
+	"Resources": {
+		"BasePipeline": {
+			"Type": "AWS::CodePipeline::Pipeline",
+			"Properties": {
+				"Name": "BasePipeline",
+				"RoleArn": {
+					"Fn::GetAtt": ["BaseRole", "Arn"]
+				},
+				"Stages": [{
+						"Name": "Source",
+						"Actions": [{
+								"Name": "SourceAction",
+								"InputArtifacts": [
+								],
+								"ActionTypeId": {
+									"Category": "Source",
+									"Owner": "AWS",
+									"Version": "1",
+									"Provider": "CodeCommit"
+								},
+								"OutputArtifacts": [{
+										"Name": "SourceOutput"
+									}
+								],
+								"Configuration": {
+									"RepositoryName": {
+										"Fn::GetAtt": ["BaseCodecommit", "Name"]
+									},
+									"BranchName": "master"
+								},
+								"RunOrder": 1
+							}
+						]
+					}, {
+						"Name": "MyApprovalStage",
+						"Actions": [{
+								"Name": "MyApprovalAction",
+								"ActionTypeId": {
+									"Category": "Approval",
+									"Owner": "AWS",
+									"Version": "1",
+									"Provider": "Manual"
+								},
+								"InputArtifacts": [],
+								"OutputArtifacts": [],
+								"Configuration": {
+									"NotificationArn": {
+										"Ref": "BaseNotification"
+									},
+									"ExternalEntityLink": "http://amazon.com",
+									"CustomData": "The latest changes."
+								},
+								"RunOrder": 1
+							}
+						]
+
+					}, {
+						"Name": "Release",
+						"Actions": [{
+								"Name": "ReleaseAction",
+								"InputArtifacts": [{
+										"Name": "SourceOutput"
+									}
+								],
+								"ActionTypeId": {
+									"Category": "Deploy",
+									"Owner": "AWS",
+									"Version": "1",
+									"Provider": "ElasticBeanstalk"
+								},
+								"Configuration": {
+									"ApplicationName": {
+										"Ref": "sampleApplication"
+									},
+									"EnvironmentName": {
+										"Ref": "sampleEnvironment"
+									}
+								},
+								"RunOrder": 1
+							}
+						]
+					}
+				],
+				"ArtifactStore": {
+					"Type": "S3",
+					"Location": {
+						"Ref": "BaseArtifactStore"
+					}
+				},
+				"DisableInboundStageTransitions": [
+				]
+			}
+		},
+		"BaseCodecommit": {
+			"Type": "AWS::CodeCommit::Repository",
+			"Properties": {
+				"RepositoryDescription": "Base code commit repo",
+				"RepositoryName": "BaseRepo",
+				"Triggers": []
+			}
+		},
+		"BaseRole": {
+			"Type": "AWS::IAM::Role",
+			"Properties": {
+				"AssumeRolePolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [{
+							"Effect": "Allow",
+							"Principal": {
+								"Service": ["codepipeline.amazonaws.com"]
+							},
+							"Action": ["sts:AssumeRole"]
+						}
+					]
+				},
+				"ManagedPolicyArns": [],
+				"Path": "/release-management/",
+				"Policies": [{
+						"PolicyName": "root",
+						"PolicyDocument": {
+							"Version": "2012-10-17",
+							"Statement": [{
+									"Effect": "Allow",
+									"Action": "*",
+									"Resource": "*"
+								}
+							]
+						}
+					}
+				],
+				"RoleName": {
+					"Fn::Join": ["", [{
+								"Ref": "AWS::Region"
+							}, "BaseRole"]]
+				}
+			}
+		},
+		"sampleApplication": {
+			"Type": "AWS::ElasticBeanstalk::Application",
+			"Properties": {
+				"Description": "AWS Elastic Beanstalk Sample Application"
+			}
+		},
+		"sampleApplicationVersion": {
+			"Type": "AWS::ElasticBeanstalk::ApplicationVersion",
+			"Properties": {
+				"ApplicationName": {
+					"Ref": "sampleApplication"
+				},
+				"Description": "AWS ElasticBeanstalk Sample Application Version",
+				"SourceBundle": {
+					"S3Bucket": "testchnind2",
+					"S3Key": "test.zip"
+				}
+			}
+		},
+		"sampleConfigurationTemplate": {
+			"Type": "AWS::ElasticBeanstalk::ConfigurationTemplate",
+			"Properties": {
+				"ApplicationName": {
+					"Ref": "sampleApplication"
+				},
+				"Description": "AWS ElasticBeanstalk Sample Configuration Template",
+				"OptionSettings": [{
+						"Namespace": "aws:autoscaling:asg",
+						"OptionName": "MinSize",
+						"Value": "1"
+					}, {
+						"Namespace": "aws:autoscaling:asg",
+						"OptionName": "MaxSize",
+						"Value": "2"
+					}, {
+						"Namespace": "aws:elasticbeanstalk:environment",
+						"OptionName": "EnvironmentType",
+						"Value": "LoadBalanced"
+					}
+				],
+				"SolutionStackName": "64bit Amazon Linux running PHP 5.3"
+			}
+		},
+		"sampleEnvironment": {
+			"Type": "AWS::ElasticBeanstalk::Environment",
+			"Properties": {
+				"ApplicationName": {
+					"Ref": "sampleApplication"
+				},
+				"Description": "AWS ElasticBeanstalk Sample Environment",
+				"TemplateName": {
+					"Ref": "sampleConfigurationTemplate"
+				},
+				"VersionLabel": {
+					"Ref": "sampleApplicationVersion"
+				}
+			}
+		},
+		"BaseNotification": {
+			"Type": "AWS::SNS::Topic",
+			"Properties": {
+				"DisplayName": "Base Notification",
+				"Subscription": [{
+						"Endpoint": "akilkudil@gmail.com",
+						"Protocol": "email"
+					}
+				],
+				"TopicName": "BaseNotification"
+			}
+		},
+		"BaseArtifactStore": {
+			"Type": "AWS::S3::Bucket",
+			"Properties": {
+				"AccessControl": "PublicReadWrite"
+			}
+		}
+	},
+	"Outputs": {
+		"PipelineName": {
+			"Description": "Pipeline created by this stack",
+			"Value": {
+				"Ref": "BasePipeline"
+			}
+		},
+		"ApplicationURL": {
+			"Description": "URL of Application (Ealstic beanstalk)created by this stack",
+			"Value": {
+				"Fn::GetAtt": ["sampleEnvironment", "EndpointURL"]
+			}
+		}
+	}
+}
